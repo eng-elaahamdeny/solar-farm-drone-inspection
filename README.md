@@ -153,7 +153,8 @@ This project is licensed under the MIT License.
 ---
 
 ## 🙋 Author
-
-Built as part of a Final Year Project (PFA) on intelligent solar infrastructure monitoring using Drone & AI.
+**Elaa Hamdani**  
+Engineering Student at INSAT – Instrumentation & Industrial Maintenance Engineering  
+Specialized in AI & Aerodynamics
 
 > *MobileNetV2 · TensorFlow · Tkinter · Deep Learning · Thermal Imaging*
