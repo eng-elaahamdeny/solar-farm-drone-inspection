@@ -135,22 +135,6 @@ Install all at once:
 pip install tensorflow numpy Pillow matplotlib
 ```
 
----
-
-## 📊 Training Output
-
-After training, two plots are saved to `model/resultats.png`:
-
-- **Accuracy curve** — Train vs Validation accuracy per epoch
-- **Loss curve** — Train vs Validation loss per epoch
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
----
 
 ## 🙋 Author
 **Elaa Hamdani**  
