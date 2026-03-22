@@ -1,29 +1,29 @@
-# 🛸 Solar Farm Drone Inspection
+# Solar Farm Drone Inspection
 
 > AI-powered desktop application for intelligent photovoltaic panel defect detection — trained on thermal drone imagery using Deep Learning (MobileNetV2).
 
 ---
 
-## 📌 Overview
+## Overview
 
 This project combines drone-captured thermal imagery with a deep learning model to automatically detect and classify solar panel defects. A clean desktop GUI allows operators to load any panel image and get an instant AI-powered diagnosis with confidence scores per defect class.
 
 ---
 
-## 🎯 Detected Defect Classes
+## Detected Defect Classes
 
 | Class | Severity | Description |
 |---|---|---|
-| 🔥 `Hotspot` | **Critical** | Localized overheating on a cell |
-| 💥 `Crack` | **Serious** | Physical micro-fracture in the panel |
-| 🐦 `Bird Drop` | **Medium** | Soiling from bird droppings |
-| 🌫️ `Dirty` | **Medium** | Dust or dirt accumulation |
-| ❄️ `Snow Covered` | **Low** | Panel covered by snow |
-| ✅ `Normal` | **None** | Panel operating correctly |
+| `Hotspot` | **Critical** | Localized overheating on a cell |
+| `Crack` | **Serious** | Physical micro-fracture in the panel |
+| `Bird Drop` | **Medium** | Soiling from bird droppings |
+| `Dirty` | **Medium** | Dust or dirt accumulation |
+| `Snow Covered` | **Low** | Panel covered by snow |
+| `Normal` | **None** | Panel operating correctly |
 
 ---
 
-## 🧠 Model Architecture
+## Model Architecture
 
 - **Base model:** MobileNetV2 (pretrained on ImageNet)
 - **Fine-tuning:** Custom classification head (GlobalAveragePooling → Dense 128 → Dropout → Softmax)
@@ -35,7 +35,7 @@ This project combines drone-captured thermal imagery with a deep learning model 
 
 ---
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```
 solar-farm-drone-inspection/
@@ -48,9 +48,6 @@ solar-farm-drone-inspection/
 │   ├── Hotspot/
 │   └── Normal/
 │
-├── model/
-│   ├── solar_defect_model.keras    # Saved trained model
-│   └── resultats.png               # Training accuracy/loss curves
 │
 ├── train_model.py                  # Model training script
 ├── interface.py                    # Desktop GUI application
@@ -60,7 +57,7 @@ solar-farm-drone-inspection/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Clone the repository
 
@@ -109,18 +106,18 @@ python interface.py
 
 ---
 
-## 🖥️ Application Features
+## Application Features
 
 The desktop GUI (built with Tkinter) lets you:
 
-- 📂 **Load** any thermal or RGB panel image from disk
-- 🤖 **Analyze** it instantly with the trained AI model
-- 📊 **View** a confidence bar + scores for all 6 defect classes
-- 🎨 **Color-coded** severity levels — green (safe) → orange → red (critical)
+- **Load** any thermal or RGB panel image from disk
+- **Analyze** it instantly with the trained AI model
+- **View** a confidence bar + scores for all 6 defect classes
+- **Color-coded** severity levels — green (safe) → orange → red (critical)
 
 ---
 
-## 📦 Requirements
+## Requirements
 
 ```
 tensorflow>=2.10
@@ -136,7 +133,7 @@ pip install tensorflow numpy Pillow matplotlib
 ```
 
 
-## 🙋 Author
+## Author
 **Elaa Hamdani**  
 Engineering Student at INSAT – Instrumentation & Industrial Maintenance Engineering  
 Specialized in AI & Aerodynamics
