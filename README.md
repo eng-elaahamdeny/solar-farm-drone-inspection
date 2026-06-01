@@ -137,10 +137,15 @@ Morphological operations (close + open) clean the mask before contour extraction
 - The app requires the model file to exist at `model/solar_defect_model.keras` before launching.
 
 ---
+## Authors
 
-## 👥 Authors
-Elaa HAMDANI - Samar GUIZANI
-Projet PFA 2025/2026 — Inspection photovoltaïque par Drone & Intelligence Artificielle
+**Elaa Hamdani** & **Samar Guizani**  
+Engineering Students at INSAT – Instrumentation & Industrial Maintenance Engineering  
+Specialized in AI & Aerodynamics
+
+**Supervisor:** Mr. Moncef Ben Smida
+
+> *MobileNetV2 · TensorFlow · Tkinter · Deep Learning · Thermal Imaging*
 
 ---
 
