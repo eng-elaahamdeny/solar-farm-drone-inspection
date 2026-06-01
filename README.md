@@ -1,141 +1,150 @@
-# Solar Farm Drone Inspection
+# 🔆 Solar Panel Inspector — AI Defect Detection
 
-> AI-powered desktop application for intelligent photovoltaic panel defect detection — trained on thermal drone imagery using Deep Learning (MobileNetV2).
-
----
-
-## Overview
-
-This project combines drone-captured thermal imagery with a deep learning model to automatically detect and classify solar panel defects. A clean desktop GUI allows operators to load any panel image and get an instant AI-powered diagnosis with confidence scores per defect class.
+An AI-powered desktop application for intelligent inspection of photovoltaic solar panels using drone imagery and deep learning.
 
 ---
 
-## Detected Defect Classes
+## 📋 Overview
 
-| Class | Severity | Description |
-|---|---|---|
-| `Hotspot` | **Critical** | Localized overheating on a cell |
-| `Crack` | **Serious** | Physical micro-fracture in the panel |
-| `Bird Drop` | **Medium** | Soiling from bird droppings |
-| `Dirty` | **Medium** | Dust or dirt accumulation |
-| `Snow Covered` | **Low** | Panel covered by snow |
-| `Normal` | **None** | Panel operating correctly |
+Solar Panel Inspector automatically detects and classifies visual defects on solar panels from thermal or RGB images. It uses a fine-tuned MobileNetV2 model to identify 6 defect categories, localizes the damaged zone with bounding boxes, and provides simulated GPS coordinates of the detected fault.
 
 ---
 
-## Model Architecture
+## ✨ Features
 
-- **Base model:** MobileNetV2 (pretrained on ImageNet)
-- **Fine-tuning:** Custom classification head (GlobalAveragePooling → Dense 128 → Dropout → Softmax)
-- **Input size:** 224×224 RGB
-- **Training split:** 80% train / 20% validation
-- **Data augmentation:** Rotation, horizontal flip, normalization
-- **Optimizer:** Adam | **Loss:** Categorical Crossentropy
-- **Epochs:** 10
+- 🤖 **AI-based defect detection** — MobileNetV2 transfer learning model trained on solar panel imagery
+- 🎯 **Defect localization** — color-aware bounding box detection drawn on the image
+- 🗺️ **Simulated GPS geolocation** — latitude/longitude and precision per defect type
+- 📊 **Confidence scores** — per-class probability displayed with a visual bar
+- 🔍 **Smart correction logic** — filters false positives (fog, shadows, reflections, sunlight glare)
+- 🖥️ **Tkinter GUI** — clean desktop interface, no browser required
 
 ---
 
-## Project Structure
+## 🗂️ Defect Classes
+
+| Class | Label | Danger Level |
+|-------|-------|-------------|
+| 0 | Clean | None |
+| 1 | Dusty | Low |
+| 2 | Bird Drop | Medium |
+| 3 | Electrical Damage | Critical |
+| 4 | Physical Damage | Serious |
+| 5 | Snow Covered | Medium |
+
+Additional inferred states: **Sunlight glare**, **Fog / blurry image**, **Cloud reflection**, **Structural shadow**.
+
+---
+
+## 📁 Project Structure
 
 ```
-solar-farm-drone-inspection/
-│
-├── dataset/                        # Kaggle dataset (solar_augmented_dataset)
-│   ├── Bird_Drop/
-│   ├── Snow_Covered/
-│   ├── Crack/
-│   ├── Dirty/
-│   ├── Hotspot/
-│   └── Normal/
-│
-│
-├── train_model.py                  # Model training script
-├── interface.py                    # Desktop GUI application
-├── requirements.txt
+solar-panel-inspector/
+├── app.py                   # Main GUI application
+├── train_model.py           # Model training script
+├── model/
+│   ├── solar_defect_model.keras   # Trained model (not included in repo)
+│   └── resultats.png              # Training curves (generated after training)
+├── dataset/                 # Training images organized by class
+│   ├── Clean/
+│   ├── Dusty/
+│   ├── Bird Drop/
+│   ├── Electrical Damage/
+│   ├── Physical Damage/
+│   └── Snow Covered/
 └── README.md
 ```
 
 ---
 
-## Getting Started
+## ⚙️ Requirements
 
-### 1. Clone the repository
+- Python 3.8+
+- TensorFlow 2.x
+- OpenCV (`cv2`)
+- Pillow (PIL)
+- NumPy
+- Matplotlib
+- Tkinter (included with Python on most platforms)
+
+Install dependencies:
 
 ```bash
-git clone https://github.com/your-username/solar-farm-drone-inspection.git
-cd solar-farm-drone-inspection
+pip install tensorflow opencv-python pillow numpy matplotlib
 ```
 
-### 2. Install dependencies
+---
 
-```bash
-pip install -r requirements.txt
-```
+## 🚀 Usage
 
-### 3. Download the dataset
+### 1. Train the model
 
-Download **solar_augmented_dataset** from [Kaggle](https://www.kaggle.com/) and place the class folders inside `dataset/`:
-
-```
-dataset/
-├── Bird_Drop/
-├── Snow_Covered/
-├── Crack/
-├── Dirty/
-├── Hotspot/
-└── Normal/
-```
-
-### 4. Train the model
+Organize your dataset in the `dataset/` folder with one subfolder per class, then run:
 
 ```bash
 python train_model.py
 ```
 
-This will:
-- Load and augment the dataset automatically
-- Train MobileNetV2 for 10 epochs (~10–20 min depending on hardware)
-- Save the model to `model/solar_defect_model.keras`
-- Generate and save accuracy/loss curves to `model/resultats.png`
+Training takes approximately 10–20 minutes on CPU. The model is saved to `model/solar_defect_model.keras` and training curves are saved to `model/resultats.png`.
 
-### 5. Launch the desktop app
+### 2. Launch the application
 
 ```bash
-python interface.py
+python app.py
 ```
+
+Click **"Charger une image et analyser"** to load a solar panel image. The app will:
+
+1. Run inference with the trained model
+2. Apply false-positive correction heuristics
+3. Detect and draw the defective zone
+4. Display GPS coordinates, confidence score, and per-class probabilities
 
 ---
 
-## Application Features
+## 🧠 Model Architecture
 
-The desktop GUI (built with Tkinter) lets you:
-
-- **Load** any thermal or RGB panel image from disk
-- **Analyze** it instantly with the trained AI model
-- **View** a confidence bar + scores for all 6 defect classes
-- **Color-coded** severity levels — green (safe) → orange → red (critical)
+- **Base model**: MobileNetV2 (pretrained on ImageNet, frozen)
+- **Head**: GlobalAveragePooling2D → Dense(128, ReLU) → Dropout(0.3) → Dense(6, Softmax)
+- **Input size**: 224 × 224 × 3
+- **Optimizer**: Adam
+- **Loss**: Categorical cross-entropy
+- **Training split**: 80% train / 20% validation
 
 ---
 
-## Requirements
+## 🔧 Defect Localization Method
 
-```
-tensorflow>=2.10
-numpy
-Pillow
-matplotlib
-```
+Bounding boxes are detected using color-based HSV masking adapted to each defect type:
 
-Install all at once:
+| Defect | Detection strategy |
+|--------|--------------------|
+| Electrical Damage | Orange/red HSV range |
+| Bird Drop | White HSV range |
+| Dusty | Light gray HSV range |
+| Physical Damage | Bright + dark threshold (cracks/chips) |
+| Snow Covered | Near-white HSV range |
+| Sunlight glare | Brightest compact region |
 
-```bash
-pip install tensorflow numpy Pillow matplotlib
-```
+Morphological operations (close + open) clean the mask before contour extraction. Up to 3 bounding boxes are drawn, sorted by area.
 
+---
 
-## Author
-**Elaa Hamdani**  
-Engineering Student at INSAT – Instrumentation & Industrial Maintenance Engineering  
-Specialized in AI & Aerodynamics
+## 📌 Notes
 
-> *MobileNetV2 · TensorFlow · Tkinter · Deep Learning · Thermal Imaging*
+- GPS coordinates are **simulated** and based on a fixed reference location (Toulouse, France). In a production system, these would come from drone telemetry.
+- The model file (`solar_defect_model.keras`) is not included due to size. Train it locally using `train_model.py`.
+- The app requires the model file to exist at `model/solar_defect_model.keras` before launching.
+
+---
+
+## 👥 Authors
+Elaa HAMDANI - Samar GUIZANI
+Projet PFA 2025/2026 — Inspection photovoltaïque par Drone & Intelligence Artificielle
+
+---
+
+## 📄 License
+
+This project is for academic and educational use.
+
