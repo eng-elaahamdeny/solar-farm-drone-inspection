@@ -5,6 +5,7 @@ import tkinter as tk  # Importer Tkinter pour construire l'interface graphique
 from tkinter import filedialog  # Importer filedialog pour ouvrir l'explorateur de fichiers
 import cv2  # Importer OpenCV pour la détection de contours
 import random  # Pour générer des coordonnées GPS simulées
+from tensorflow.keras.models import Model
 
 # ══════════════════════════════
 # CHARGER L'IA
@@ -14,118 +15,123 @@ model = tf.keras.models.load_model("model/solar_defect_model.keras")  # Charger 
 
 # CLASSES associe chaque index de classe à un nom de défaut, un niveau de danger et une couleur d'affichage
 CLASSES = {
-    0: ("Bird Drop",    "Moyen",    "#f39c12"),  # Classe 0 : fientes d'oiseaux, danger moyen, orange
-    1: ("Snow Covered", "Faible",   "#2980b9"),  # Classe 1 : panneau enneigé, danger faible, bleu
-    2: ("Crack",        "Sérieux",  "#e67e22"),  # Classe 2 : fissure, danger sérieux, orange foncé
-    3: ("Dirty",        "Moyen",    "#d4ac0d"),  # Classe 3 : panneau sale, danger moyen, jaune
-    4: ("Hotspot",      "Critique", "#e74c3c"),  # Classe 4 : point chaud, danger critique, rouge
-    5: ("Normal",       "Aucun",    "#27ae60"),  # Classe 5 : panneau normal, aucun danger, vert
+    0: ("Clean",             "Aucun",    "#27ae60"),
+    1: ("Dusty",             "Faible",   "#2980b9"),
+    2: ("Bird Drop",         "Moyen",    "#f39c12"),
+    3: ("Electrical Damage", "Critique", "#e74c3c"),
+    4: ("Physical Damage",   "Sérieux",  "#e67e22"),
+    5: ("Snow Covered",      "Moyen",    "#d4ac0d"),
 }
-
 # ══════════════════════════════
 # FONCTION DE DÉTECTION DE ZONE DÉFECTUEUSE (AMÉLIORÉE)
 # ══════════════════════════════
 
-def detecter_zone_defaut(image_path, defect_type):
-    """
-    Détecte la région du défaut dans l'image et retourne un rectangle
-    Version améliorée avec meilleure détection des hotspots
-    """
-    # Charger l'image avec OpenCV
-    img = cv2.imread(image_path)
-    if img is None:
-        return None
-    
-    height, width = img.shape[:2]
-    
-    # Convertir en espace colorimétrique adapté
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    # Appliquer un flou pour réduire le bruit
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    
-    if defect_type == "Hotspot":
-        # Détection améliorée des hotspots (zones thermiques)
-        # Utiliser l'histogramme pour trouver les zones chaudes
-        # Calculer le seuil adaptatif basé sur le percentile 85
-        flat = blurred.flatten()
-        flat_sorted = np.sort(flat)
-        threshold_val = flat_sorted[int(len(flat_sorted) * 0.85)]  # 85ème percentile
-        
-        # Appliquer le seuil
-        _, thresh = cv2.threshold(blurred, threshold_val, 255, cv2.THRESH_BINARY)
-        
-        # Opérations morphologiques pour nettoyer
-        kernel = np.ones((5, 5), np.uint8)
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-        
-    elif defect_type == "Crack":
-        # Détection des fissures (contours)
-        edges = cv2.Canny(blurred, 50, 150)
-        kernel = np.ones((3, 3), np.uint8)
-        thresh = cv2.dilate(edges, kernel, iterations=2)
-    elif defect_type in ["Bird Drop", "Dirty"]:
-        # Détection des taches
-        edges = cv2.Canny(blurred, 30, 100)
-        kernel = np.ones((5, 5), np.uint8)
-        thresh = cv2.dilate(edges, kernel, iterations=3)
+def get_gradcam_bboxes(image_path, couleur):
+    img_orig = cv2.imread(image_path)
+    h, w = img_orig.shape[:2]
+    hsv = cv2.cvtColor(img_orig, cv2.COLOR_BGR2HSV)
+    gray = cv2.cvtColor(img_orig, cv2.COLOR_BGR2GRAY)
+
+    # Détecter selon la couleur du défaut
+    if couleur == "#e74c3c":  # Electrical Damage → zones orange/brun/rouge
+        mask1 = cv2.inRange(hsv, (0, 40, 80), (25, 255, 255))
+        mask2 = cv2.inRange(hsv, (160, 40, 80), (180, 255, 255))
+        mask = cv2.bitwise_or(mask1, mask2)
+    elif couleur == "#f39c12":  # Bird Drop → zones blanches
+        mask = cv2.inRange(hsv, (0, 0, 180), (180, 40, 255))
+    elif couleur == "#2980b9":  # Dusty → zones grises claires
+        mask = cv2.inRange(hsv, (0, 0, 120), (180, 40, 200))
+    elif couleur == "#e67e22":  # Physical Damage → zones brillantes (fissures/éclats)
+    # Fissures = zones très brillantes sur fond bleu
+       _, bright = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)
+    # Zones sombres aussi (bords cassés)
+       _, dark = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
+       mask = cv2.bitwise_or(bright, dark)
+    # Exclure les zones trop uniformément blanches (ciel, reflets)
+       hsv_check = cv2.cvtColor(img_orig, cv2.COLOR_BGR2HSV)
+       not_sky = cv2.inRange(hsv_check, (90, 20, 20), (130, 255, 200))
+       mask = cv2.bitwise_and(mask, not_sky)
+    elif couleur == "#d4ac0d":  # Snow → zones très blanches
+        mask = cv2.inRange(hsv, (0, 0, 200), (180, 30, 255))
     else:
-        # Pour les autres défauts
-        mean_val = np.mean(blurred)
-        std_val = np.std(blurred)
-        threshold = mean_val + std_val
-        _, thresh = cv2.threshold(blurred, threshold, 255, cv2.THRESH_BINARY)
-    
-    # Trouver les contours
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Filtrer les contours par taille
-    min_area = (height * width) * 0.01  # 1% de l'image minimum
-    valid_contours = [c for c in contours if cv2.contourArea(c) > min_area]
-    
-    if valid_contours:
-        # Prendre le plus grand contour valide
-        largest_contour = max(valid_contours, key=cv2.contourArea)
-        x, y, w, h = cv2.boundingRect(largest_contour)
-        
-        # Ajouter une marge autour du contour
+        # Fallback générique
+        mask = cv2.inRange(hsv, (0, 40, 80), (35, 255, 255))
+
+    # Nettoyage
+    kernel = np.ones((15, 15), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((8, 😎, np.uint8))
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    bboxes = []
+    min_area = (w * h) * 0.01
+    max_area = (w * h) * 0.6
+
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < min_area or area > max_area:
+            continue
+        x, y, bw, bh = cv2.boundingRect(contour)
         margin = 10
         x = max(0, x - margin)
         y = max(0, y - margin)
-        w = min(width - x, w + 2 * margin)
-        h = min(height - y, h + 2 * margin)
-        
-        return (x, y, w, h)
-    else:
-        # Si pas de détection, retourner une zone au centre
-        w = width // 3
-        h = height // 3
-        x = (width - w) // 2
-        y = (height - h) // 2
-        return (x, y, w, h)
+        bw = min(w - x, bw + 2 * margin)
+        bh = min(h - y, bh + 2 * margin)
+        bboxes.append((x, y, bw, bh))
 
-def dessiner_rectangle(image, bbox, couleur, nom_defaut):
-    """
-    Dessine un rectangle autour du défaut sur l'image
-    """
+    # Trier par surface décroissante
+    bboxes.sort(key=lambda b: -(b[2] * b[3]))
+    bboxes = bboxes[:3]
+
+    if not bboxes:
+        # Fallback center
+        bboxes = [(w//4, h//4, w//2, h//2)]
+
+    return bboxes
+
+def dessiner_rectangles(image, bboxes, couleur, nom_defaut):
     draw = ImageDraw.Draw(image)
-    x, y, w, h = bbox
     
-    # Dessiner le rectangle
-    draw.rectangle([x, y, x + w, y + h], outline=couleur, width=3)
-    
-    # Ajouter une étiquette avec le nom du défaut
-    draw.text((x + 5, y - 18), nom_defaut, fill=couleur)
-    
-    # Ajouter un point au centre
-    centre_x = x + w // 2
-    centre_y = y + h // 2
-    rayon = 5
-    draw.ellipse([centre_x - rayon, centre_y - rayon, 
-                  centre_x + rayon, centre_y + rayon], 
-                 fill=couleur)
-    
+    for i, (x, y, w, h) in enumerate(bboxes):
+        # Rectangle pointillé simulé avec des segments
+        dash = 8
+        gap = 5
+        # Haut
+        cx = x
+        while cx < x + w:
+            draw.line([(cx, y), (min(cx + dash, x + w), y)], fill=couleur, width=2)
+            cx += dash + gap
+        # Bas
+        cx = x
+        while cx < x + w:
+            draw.line([(cx, y + h), (min(cx + dash, x + w), y + h)], fill=couleur, width=2)
+            cx += dash + gap
+        # Gauche
+        cy = y
+        while cy < y + h:
+            draw.line([(x, cy), (x, min(cy + dash, y + h))], fill=couleur, width=2)
+            cy += dash + gap
+        # Droite
+        cy = y
+        while cy < y + h:
+            draw.line([(x + w, cy), (x + w, min(cy + dash, y + h))], fill=couleur, width=2)
+            cy += dash + gap
+
+        # Point rouge au centre exact du défaut
+        centre_x = x + w // 2
+        centre_y = y + h // 2
+        rayon = 6
+        draw.ellipse([centre_x - rayon, centre_y - rayon,
+                      centre_x + rayon, centre_y + rayon],
+                     fill=couleur, outline="white")
+
+        # Étiquette
+        label = nom_defaut if len(bboxes) == 1 else f"{nom_defaut} {i+1}"
+        draw.rectangle([x + 2, y - 18, x + len(label) * 7 + 6, y - 2],
+                       fill=couleur)
+        draw.text((x + 4, y - 17), label, fill="white")
+
     return image
 
 # ══════════════════════════════
@@ -320,7 +326,7 @@ for i, (idx, (nom, danger, couleur)) in enumerate(classes_list):
         parent = right_scores
     
     lbl = tk.Label(parent, text=f"{nom}: —",
-                   font=("Arial", 8), bg="white", fg="#cccccc")
+                   font=("Arial", 😎, bg="white", fg="#cccccc")
     lbl.pack(anchor="w", pady=2)
     labels_scores[idx] = lbl
 
@@ -333,11 +339,109 @@ footer.pack(fill="x", side="bottom", before=main)
 
 tk.Label(footer, text="Projet PFA 25/26 — Inspection photovoltaïque par Drone & IA — Localisation précise des défauts",
          font=("Arial", 7), bg="#f5f5f5", fg="#555555").pack()
+# ══════════════════════════════
+# FONCTIONS DE CORRECTION DES CONFUSIONS
+# ══════════════════════════════
+
+def detecter_ensoleillement(image_path):
+    img = cv2.imread(image_path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    total = gray.size
+
+    # 1. Zones sombres = défaut → pas ensoleillement
+    dark = np.sum(gray < 50) / total
+    if dark > 0.05:
+        return False
+
+    # 2. Zones orange/rouge = electrical damage → pas ensoleillement
+    orange = cv2.inRange(hsv, (5, 80, 80), (25, 255, 255))
+    red = cv2.inRange(hsv, (0, 80, 80), (5, 255, 255))
+    hot_ratio = (np.sum(orange > 0) + np.sum(red > 0)) / total
+    if hot_ratio > 0.01:
+        return False
+
+    # 3. Couleur dominante bleue = panneau normal → ensoleillement possible
+    blue_mask = cv2.inRange(hsv, (90, 20, 30), (140, 255, 200))
+    blue_ratio = np.sum(blue_mask > 0) / total
+    if blue_ratio < 0.30:
+        return False
+
+    # 4. Zone brillante compacte et grande
+    _, bright_mask = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+    bright_ratio = np.sum(bright_mask > 0) / total
+    if bright_ratio < 0.04:
+        return False
+
+    kernel = np.ones((20, 20), np.uint8)
+    dilated = cv2.dilate(bright_mask, kernel)
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    compact_bright = False
+    for c in contours:
+        area = cv2.contourArea(c)
+        x, y, bw, bh = cv2.boundingRect(c)
+        ratio_forme = bw / (bh + 1e-5)
+        if area > total * 0.03 and 0.3 < ratio_forme < 3.0:
+            compact_bright = True
+            break
+
+    if not compact_bright:
+        return False
+
+    # 5. Texture uniforme = ensoleillement (pas de défaut localisé)
+    std_gray = np.std(gray)
+
+    return True
+
+def detecter_brouillard(image_path):
+    img = cv2.imread(image_path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    std = np.std(gray)
+    mean = np.mean(gray)
+    return std < 20 and mean > 150
+
+def detecter_ombre_structure(image_path):
+    img = cv2.imread(image_path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    dark_ratio = np.sum(gray < 40) / gray.size
+    bright_ratio = np.sum(gray > 200) / gray.size
+    return dark_ratio > 0.15 and bright_ratio > 0.15
+
+def detecter_nuage_reflet(image_path):
+    img = cv2.imread(image_path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, bright = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+    bright_ratio = np.sum(bright > 0) / gray.size
+    std = np.std(gray)
+    return bright_ratio > 0.3 and std < 40
 
 # ══════════════════════════════
 # FONCTION ANALYSER
 # ══════════════════════════════
-
+def get_bbox_ensoleillement(image_path):
+    img = cv2.imread(image_path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h_img, w_img = img.shape[:2]
+    
+    _, bright = cv2.threshold(gray, 210, 255, cv2.THRESH_BINARY)
+    kernel = np.ones((20, 20), np.uint8)
+    bright_dilated = cv2.dilate(bright, kernel)
+    contours, _ = cv2.findContours(bright_dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if contours:
+        best = max(contours, key=lambda c: np.mean(
+            gray[cv2.boundingRect(c)[1]:cv2.boundingRect(c)[1]+cv2.boundingRect(c)[3],
+                 cv2.boundingRect(c)[0]:cv2.boundingRect(c)[0]+cv2.boundingRect(c)[2]]))
+        x, y, w, h = cv2.boundingRect(best)
+        margin = 10
+        x = max(0, x - margin)
+        y = max(0, y - margin)
+        w = min(w_img - x, w + 2 * margin)
+        h = min(h_img - y, h + 2 * margin)
+        return (x, y, w, h)
+    else:
+        return (w_img//4, h_img//4, w_img//2, h_img//2)
 def analyser_image():
     path = filedialog.askopenfilename(
         filetypes=[("Images", "*.jpg *.jpeg *.png *.bmp")]
@@ -371,23 +475,65 @@ def analyser_image():
     class_idx = np.argmax(prediction)
     confidence = prediction[0][class_idx] * 100
     nom, danger, couleur = CLASSES[class_idx]
+    # Vérifier ensoleillement avant tout
+    physical_score = prediction[0][4] * 100
+    electrical_score = prediction[0][3] * 100
+    bird_score = prediction[0][2] * 100
+    if detecter_ensoleillement(path):
+       nom = "Ensoleillement"
+       danger = "Aucun"
+       couleur = "#f1c40f"
+    # ══════════════════════════════
+    # CORRECTIONS DES CONFUSIONS
+    # ══════════════════════════════
+    elif detecter_brouillard(path):
+        nom = "Image floue / Brouillard"
+        danger = "Non analysable"
+        couleur = "#95a5a6"
+    elif nom == "Snow Covered" and detecter_nuage_reflet(path):
+        nom = "Reflet nuage"
+        danger = "Aucun"
+        couleur = "#7f8c8d"
+    elif nom == "Snow Covered":
+        img_check = cv2.imread(path)
+        gray_check = cv2.cvtColor(img_check, cv2.COLOR_BGR2GRAY)
+        if np.mean(gray_check) < 120 and np.std(gray_check) > 30:
+            nom = "Dusty"
+            danger = "Faible"
+            couleur = "#2980b9"
+    elif nom == "Electrical Damage" and detecter_ombre_structure(path) and confidence < 80:
+        nom = "Ombre de structure"
+        danger = "Aucun"
+        couleur = "#7f8c8d"
+    elif nom == "Bird Drop":
+        img_check = cv2.imread(path)
+        gray_check = cv2.cvtColor(img_check, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray_check, 200, 255, cv2.THRESH_BINARY)
+        if np.sum(thresh > 0) / gray_check.size < 0.01 and confidence < 70:
+            nom = "Tache (non défaut)"
+            danger = "Aucun"
+            couleur = "#7f8c8d"
     
     # Détection de la zone du défaut (uniquement si ce n'est pas normal)
     if nom != "Normal":
         # Détecter la zone dans l'image originale
-        bbox_original = detecter_zone_defaut(path, nom)
+        if nom == "Ensoleillement":
+           bboxes_original = [get_bbox_ensoleillement(path)]
+        else:
+           bboxes_original = get_gradcam_bboxes(path, couleur)
         
-        if bbox_original:
+        if bboxes_original:
             # Adapter les coordonnées à la taille d'affichage
-            x, y, w, h = bbox_original
-            x_disp = int(x * scale_x)
-            y_disp = int(y * scale_y)
-            w_disp = int(w * scale_x)
-            h_disp = int(h * scale_y)
-            bbox_display = (x_disp, y_disp, w_disp, h_disp)
-            
+            bboxes_display = []
+            for (x, y, w, h) in bboxes_original:
+              bboxes_display.append((
+                 int(x * scale_x),
+                 int(y * scale_y),
+                 int(w * scale_x),
+                 int(h * scale_y)
+                ))
             # Dessiner le rectangle sur l'image
-            img_with_rect = dessiner_rectangle(img_display, bbox_display, couleur, nom)
+            img_with_rect = dessiner_rectangles(img_display, bboxes_display, couleur, nom)
             
             # Centrer l'image dans le canvas
             x_offset = (canvas_width - new_width) // 2
