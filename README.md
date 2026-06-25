@@ -145,6 +145,8 @@ Specialized in AI & Aerodynamics
 
 **Supervisor:** Mr. Moncef Ben Smida
 
+**Examinator:** Mr. Hosni Saidi
+
 > *MobileNetV2 · TensorFlow · Tkinter · Deep Learning · Thermal Imaging*
 
 ---
